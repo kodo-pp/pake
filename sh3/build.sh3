@@ -1,0 +1,10 @@
+D_EXECUTABLE=pake
+D_SOURCES=(src)
+D_LINKER=shld
+D_LINKPFLAGS='-o '
+
+function F_postbuild() {
+    mv "$D_EXECUTABLE" "$D_EXECUTABLE.tmp"
+    shld "preload.sh" "$D_EXECUTABLE.tmp" "postload.sh" -o "$D_EXECUTABLE"
+    rm -f "$D_EXECUTABLE.tmp"
+}

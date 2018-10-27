@@ -1,0 +1,25 @@
+pak_name='example'
+pak_depends=('sh3')
+pak_license_file='test_license.txt'
+
+pak_prepare() {
+    echo Prepare
+}
+
+pak_build() {
+    echo Build
+}
+
+pak_postbuild() {
+    echo Postbuild
+}
+
+pak_clean() {
+    echo Clean
+}
+
+pak_package() {
+    echo Package
+    mkdir -p "$PAK_PKGDIR/usr/share/"
+    install -Dm644 "test_file" "$PAK_PKGDIR/usr/share/"
+}

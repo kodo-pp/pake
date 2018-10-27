@@ -1,0 +1,6 @@
+function identity() {
+    cp "$2" "$1"
+}
+
+D_EXT_TAB[sh]=identity
+D_FLAGS[sh]=''

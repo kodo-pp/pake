@@ -1,0 +1,229 @@
+#!/usr/bin/env bash
+
+# This file was linked automatically
+
+set -e
+
+#!/usr/bin/env bash
+
+# This file was linked automatically
+
+function main() {
+    parse_arguments "$@"
+    source_pakfile
+    sanity_check
+    if [[ "${o_target}" == "x" ]]; then
+        pak_xtarget
+        exit 0
+    fi
+
+    if [[ "${o_target}" == "clean" ]]; then
+        clean_sourcetree
+        exit 0
+    fi
+    build
+    if [[ "${o_mode}" == "build" ]]; then
+        exit 0
+    fi
+    package
+    if [[ "${o_mode}" == "build package" ]]; then
+        exit 0
+    fi
+    install_package
+}
+
+help_message='Usage: pake [VARIABLE=VALUE ...] [options] <target>
+Options:
+    --allow-unsafe  Allow building as root
+    --sudo          Use sudo when installing packages
+    --no-sudo       Don'\''t use sudo when installing packages
+    --help          Display this help information and exit
+    --version       Display version information and exit
+
+Targets:
+    all             Alias to "build"
+    build           Build and package
+    build-only      Build but don'\''t package
+    clean           Clean the source tree from temporary files and binaries
+    install         Install the package with pak, possibly building it
+    x <target>      Run extra package-specific target script'
+
+function show_help() {
+    echo "${help_message}"
+}
+
+function show_version() {
+    echo "${pake_version}"
+}
+
+pake_version="1.0.1"
+
+function parse_arguments() {
+    o_allow_unsafe=0
+    o_sudo=1
+    o_mode='build package'
+    o_target=''
+
+    while [[ -n "$1" ]]; do
+        case "$1" in
+            --allow-unsafe)
+                o_allow_unsafe=1
+                ;;
+            --sudo)
+                o_sudo=1
+                ;;
+            --no-sudo)
+                o_sudo=0
+                ;;
+            --help)
+                show_help
+                exit 0
+                ;;
+            --version)
+                show_version
+                exit 0
+                ;;
+            -*)
+                echo "Error: unknown option: $1"
+                show_help
+                exit 1
+                ;;
+            *=*)
+                var="${1/=*/}"
+                value="${1/*=/}"
+                if ! [[ $var =~ [a-zA-Z_][a-zA-Z0-9_]* ]]; then
+                    echo "Invalid variable name: ${var}"
+                    show_help
+                    exit 1
+                fi
+                eval "$1"
+                ;;
+            all|build|build-only|clean|install)
+                if [[ -n "${o_target}" ]]; then
+                    echo "Error: multiple targets specified"
+                    show_help
+                    exit 1
+                fi
+                o_target="$1"
+                case "$o_target" in
+                    all|build)
+                        o_mode='build package'
+                        ;;
+                    build_only)
+                        o_mode='build'
+                        ;;
+                    install)
+                        o_mode='build package install'
+                        ;;
+                esac
+                ;;
+            x)
+                if [[ -n "${o_target}" ]]; then
+                    echo "Error: multiple targets specified"
+                    show_help
+                    exit 1
+                fi
+                o_target='x'
+                XTARGET="$2"
+                if [[ -z "${XTARGET}" ]]; then
+                    echo "Error: target 'x' requires an argument"
+                    show_help
+                    exit 1
+                fi
+                shift
+                ;;
+            *)
+                echo "Error: unknown argument: $1"
+                show_help
+                exit 1
+                ;;
+        esac
+        shift
+    done
+    if [[ -z "${o_target}" ]]; then
+        echo "Error: no target specified"
+        show_help
+        exit 1
+    fi
+}
+
+function source_pakfile() {
+    echo "pake: Sourcing Pakfile"
+    if ! [[ -e "Pakfile" ]]; then
+        echo "Error: no Pakfile found"
+        exit 1
+    fi
+    source Pakfile
+}
+
+function clean_sourcetree() {
+    if [[ "$(type -t pak_clean)" == "function" ]]; then
+        echo "pake: Cleaning up"
+        pak_clean
+        rm -rf ".pake"
+    fi
+}
+
+function build() {
+    if [[ "$(type -t pak_prepare)" == "function" ]]; then
+        echo "pake: Preparing sources"
+        pak_prepare
+        echo "pake: Sources are ready"
+    fi
+    if [[ "$(type -t pak_build)" == "function" ]]; then
+        echo "pake: Building"
+        pak_build
+    fi
+    if [[ "$(type -t pak_postbuild)" == "function" ]]; then
+        echo "pake: Running post-build actions"
+        pak_postbuild
+    fi
+}
+
+function package() {
+    echo "pake: Starting packaging"
+    export PAK_PKGDIR=".pake/pkgdir/files"
+    mkdir -p "${PAK_PKGDIR}"
+    mkdir -p ".pake/pkgdir/.pak2"
+    echo "${pak_name}" > ".pake/pkgdir/.pak2/name"
+    echo "${pak_depends[@]}" > ".pake/pkgdir/.pak2/deps"
+    if [[ -n "${pak_license_file}" ]]; then
+        cat "${pak_license_file}" > ".pake/pkgdir/.pak2/license"
+    fi
+    pushd . >/dev/null
+    pak_package
+    popd >/dev/null
+    echo "pake: Compressing the package"
+    tar -cJf "${pak_archive_name:-${pak_name}.pak}" -C ".pake/pkgdir/" files .pak2 
+    echo "pake: Packaged"
+}
+
+function install_package() {
+    echo "pake: Installing package"
+    if [[ "${o_sudo}" == '1' ]]; then
+        sudo pak install "${pak_archive_name:-${pak_name}.pak}"
+    else
+        pak install "${pak_archive_name:-${pak_name}.pak}"
+    fi
+}
+
+function sanity_check() {
+    echo "pake: Performing sanity check"
+    if ! [[ ${pak_name} =~ [a-zA-Z0-9_-]+ ]]; then
+        echo "Error: invalid package name: ${pak_name}"
+        exit 1
+    fi
+    local name
+    for name in "${pak_depends[@]}"; do
+        if ! [[ ${name} =~ [a-zA-Z0-9_-]+ ]]; then
+            echo "Error: invalid dependency name: ${name}"
+            exit 1
+        fi
+    done
+}
+
+
+
+main "$@"
+
+

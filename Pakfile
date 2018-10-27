@@ -1,0 +1,17 @@
+pak_name=pake
+pak_deps=()
+pak_license_file='LICENSE'
+
+pak_build() {
+    sh3 build
+}
+
+pak_clean() {
+    sh3 clean
+}
+
+pak_package() {
+    echo "PKGDIR: $PAK_PKGDIR"
+    mkdir -p "${PAK_PKGDIR}/usr/bin"
+    install -Dm755 pake "${PAK_PKGDIR}/usr/bin"
+}
